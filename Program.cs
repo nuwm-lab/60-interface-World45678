@@ -3,49 +3,69 @@ using System;
 namespace AbstractInterfaceLab
 {
     /// <summary>
-    /// ✅ 1. ІНТЕРФЕЙС
-    /// Визначає контракт: будь-який дріб повинен вміти встановлювати параметри,
-    /// показувати себе і обчислювати значення.
+    /// Інтерфейс, що визначає контракт для роботи з дробами.
     /// </summary>
-    public interface IFraction
+    public interface IFraction : IDisposable
     {
-        void SetCoefficients();
-        void DisplayInfo();
+        /// <summary>
+        /// Обчислює значення функції в точці x.
+        /// </summary>
         double Calculate(double x);
+
+        /// <summary>
+        /// Виводить інформацію про дріб (формулу та коефіцієнти).
+        /// </summary>
+        void DisplayInfo();
     }
 
     /// <summary>
-    /// ✅ 2. АБСТРАКТНИЙ КЛАС
-    /// Реалізує інтерфейс і додає загальну поведінку (конструктори/деструктори).
+    /// Абстрактний базовий клас.
+    /// Реалізує загальну логіку та патерн Dispose.
     /// </summary>
     public abstract class BaseFraction : IFraction
     {
-        /// <summary>
-        /// Точність для порівняння чисел (доступна спадкоємцям).
-        /// </summary>
-        protected const double Epsilon = 1e-12;
+        // Static readonly краще ніж const, якщо ми захочемо змінити це в майбутньому без перекоміляції клієнтів
+        protected static readonly double Epsilon = 1e-12;
+        private bool _disposed = false;
 
-        // Конструктор базового класу
-        public BaseFraction()
+        protected BaseFraction()
         {
-            Console.WriteLine("-> Викликано конструктор абстрактного класу BaseFraction");
+            // Конструктор чистий, без виводу в консоль
         }
 
-        // Деструктор (Finalizer)
+        // Деструктор (фіналайзер) - залишено для виконання вимог методички,
+        // але в реальному C# коді він рідко потрібен для керованих ресурсів.
         ~BaseFraction()
         {
-            Console.WriteLine("-> Викликано деструктор абстрактного класу BaseFraction");
+            Dispose(false);
         }
 
-        // Абстрактні методи, які зобов'язані реалізувати спадкоємці
-        public abstract void SetCoefficients();
-        public abstract void DisplayInfo();
         public abstract double Calculate(double x);
+        public abstract void DisplayInfo();
+
+        // Реалізація IDisposable
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    // Тут звільняємо керовані ресурси (якщо є)
+                }
+                // Тут звільняємо некеровані ресурси (якщо є)
+                _disposed = true;
+            }
+        }
     }
 
     /// <summary>
-    /// ✅ Клас простого дробу (1 / (a*x)).
-    /// Успадковується від BaseFraction.
+    /// Клас простого дробу виду 1 / (a * x).
     /// </summary>
     public class SimpleFraction : BaseFraction
     {
@@ -62,49 +82,14 @@ namespace AbstractInterfaceLab
             }
         }
 
-        // Конструктор
-        public SimpleFraction() : base() // Виклик базового конструктора
+        public SimpleFraction(double a)
         {
-            _coefficientA = 1.0;
-            Console.WriteLine("-> Створено об'єкт SimpleFraction");
-        }
-
-        // Деструктор
-        ~SimpleFraction()
-        {
-            Console.WriteLine("-> Видалено об'єкт SimpleFraction");
-        }
-
-        public override void SetCoefficients()
-        {
-            Console.WriteLine("--- Налаштування простого дробу ---");
-            Console.Write("Введіть коефіцієнт 'a': ");
-            double value;
-            while (true)
-            {
-                if (double.TryParse(Console.ReadLine(), out value))
-                {
-                    try
-                    {
-                        CoefficientA = value;
-                        break;
-                    }
-                    catch (ArgumentException ex)
-                    {
-                        Console.WriteLine($"Помилка: {ex.Message} Ще раз:");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Помилка. Введіть число:");
-                }
-            }
+            CoefficientA = a; // Валідація спрацює через сетер
         }
 
         public override void DisplayInfo()
         {
-            Console.WriteLine("\n[Тип: Простий дріб]");
-            Console.WriteLine($"Формула: 1 / ({CoefficientA} * x)");
+            Console.WriteLine($"[Простий дріб] Формула: 1 / ({CoefficientA} * x)");
         }
 
         public override double Calculate(double x)
@@ -118,72 +103,93 @@ namespace AbstractInterfaceLab
     }
 
     /// <summary>
-    /// ✅ Клас ланцюгового дробу.
-    /// Успадковується від BaseFraction.
+    /// Клас ланцюгового дробу.
     /// </summary>
     public class ContinuedFraction : BaseFraction
     {
+        // Приватні поля
         private double _a1, _a2, _a3;
 
-        // Конструктор
-        public ContinuedFraction() : base()
-        {
-            Console.WriteLine("-> Створено об'єкт ContinuedFraction");
+        // Публічні властивості тільки для читання (або з приватним сетом),
+        // щоб гарантувати незмінність після створення (immutability), або контрольовану зміну.
+        public double A1 
+        { 
+            get => _a1; 
+            private set => ValidateAndSet(ref _a1, value, nameof(A1)); 
+        }
+        
+        public double A2 
+        { 
+            get => _a2; 
+            private set => ValidateAndSet(ref _a2, value, nameof(A2)); 
         }
 
-        // Деструктор
-        ~ContinuedFraction()
-        {
-            Console.WriteLine("-> Видалено об'єкт ContinuedFraction");
+        public double A3 
+        { 
+            get => _a3; 
+            private set => ValidateAndSet(ref _a3, value, nameof(A3)); 
         }
 
-        // Допоміжний метод (внутрішня логіка класу)
-        private double ReadCoefficient(string name)
+        public ContinuedFraction(double a1, double a2, double a3)
         {
-            double value;
-            while (true)
-            {
-                Console.Write($"Введіть коефіцієнт '{name}' (не 3): ");
-                if (double.TryParse(Console.ReadLine(), out value))
-                {
-                    if (Math.Abs(value - 3.0) < Epsilon)
-                        Console.WriteLine("Помилка: не може дорівнювати 3.");
-                    else
-                        return value;
-                }
-                else
-                {
-                    Console.WriteLine("Помилка. Введіть число.");
-                }
-            }
+            A1 = a1;
+            A2 = a2;
+            A3 = a3;
         }
 
-        public override void SetCoefficients()
+        // Допоміжний метод для валідації (DRY - Don't Repeat Yourself)
+        private void ValidateAndSet(ref double field, double value, string paramName)
         {
-            Console.WriteLine("\n--- Налаштування ланцюгового дробу ---");
-            _a1 = ReadCoefficient("a1");
-            _a2 = ReadCoefficient("a2");
-            _a3 = ReadCoefficient("a3");
+            // Перевірка за умовою задачі: коефіцієнт не може дорівнювати 3
+            if (Math.Abs(value - 3.0) < Epsilon)
+                throw new ArgumentException($"Коефіцієнт {paramName} не може дорівнювати 3.");
+            
+            field = value;
         }
 
         public override void DisplayInfo()
         {
-            Console.WriteLine("\n[Тип: Ланцюговий дріб]");
-            Console.WriteLine($"Коефіцієнти: a1={_a1}, a2={_a2}, a3={_a3}");
+            Console.WriteLine($"[Ланцюговий дріб] Коефіцієнти: a1={A1}, a2={A2}, a3={A3}");
         }
 
         public override double Calculate(double x)
         {
-            double inner = _a3 * x;
-            if (Math.Abs(inner) < Epsilon) throw new DivideByZeroException("Внутрішній знаменник = 0");
+            // Обчислення зсередини назовні
+            double inner = A3 * x;
+            if (Math.Abs(inner) < Epsilon) throw new DivideByZeroException("Внутрішній знаменник (A3*x) дорівнює 0.");
 
-            double middle = _a2 * x + (1.0 / inner);
-            if (Math.Abs(middle) < Epsilon) throw new DivideByZeroException("Середній знаменник = 0");
+            double middleDenominator = A2 * x + (1.0 / inner);
+            if (Math.Abs(middleDenominator) < Epsilon) throw new DivideByZeroException("Середній знаменник дорівнює 0.");
 
-            double outer = _a1 * x + (1.0 / middle);
-            if (Math.Abs(outer) < Epsilon) throw new DivideByZeroException("Зовнішній знаменник = 0");
+            double outerDenominator = A1 * x + (1.0 / middleDenominator);
+            if (Math.Abs(outerDenominator) < Epsilon) throw new DivideByZeroException("Зовнішній знаменник дорівнює 0.");
 
-            return 1.0 / outer;
+            return 1.0 / outerDenominator;
+        }
+    }
+
+    /// <summary>
+    /// Статичний клас для взаємодії з користувачем (UI Logic).
+    /// Відокремлює введення даних від бізнес-логіки.
+    /// </summary>
+    public static class InputHandler
+    {
+        public static double ReadDouble(string message, Func<double, bool> validator = null, string errorMessage = null)
+        {
+            while (true)
+            {
+                Console.Write(message);
+                if (double.TryParse(Console.ReadLine(), out double result))
+                {
+                    if (validator != null && !validator(result))
+                    {
+                        Console.WriteLine($"Помилка: {errorMessage}");
+                        continue;
+                    }
+                    return result;
+                }
+                Console.WriteLine("Некоректний формат числа. Спробуйте ще раз.");
+            }
         }
     }
 
@@ -191,32 +197,44 @@ namespace AbstractInterfaceLab
     {
         static void Main(string[] args)
         {
+            Console.OutputEncoding = System.Text.Encoding.UTF8; // Для коректного відображення кирилиці
+
             while (true)
             {
-                // Використовуємо блок scope {}, щоб продемонструвати роботу деструкторів,
-                // коли змінна виходить з області видимості.
+                Console.WriteLine("\n--- Лабораторна робота: Абстрактні класи та Інтерфейси ---");
+                Console.WriteLine("1. Створити простий дріб");
+                Console.WriteLine("2. Створити ланцюговий дріб");
+                Console.WriteLine("0. Вихід");
+                
+                string choice = Console.ReadLine();
+                if (choice == "0") break;
+
+                IFraction fraction = null;
+
+                try
                 {
-                    Console.WriteLine("\n--- Лабораторна: Абстрактні класи та Інтерфейси ---");
-                    Console.WriteLine("1. Простий дріб");
-                    Console.WriteLine("2. Ланцюговий дріб");
-                    Console.WriteLine("0. Вихід");
-                    Console.Write("Вибір: ");
-                    string choice = Console.ReadLine();
-
-                    if (choice == "0") break;
-
-                    // !!! ДЕМОНСТРАЦІЯ РОБОТИ ІНТЕРФЕЙСУ !!!
-                    // Ми створюємо змінну типу інтерфейсу IFraction.
-                    // Вона може зберігати посилання на будь-який клас, що реалізує цей інтерфейс.
-                    IFraction myFraction = null;
-
                     if (choice == "1")
                     {
-                        myFraction = new SimpleFraction();
+                        // Логіка введення винесена з класу
+                        double a = InputHandler.ReadDouble(
+                            "Введіть коефіцієнт a (не 0): ", 
+                            val => Math.Abs(val) > 1e-12, 
+                            "Коефіцієнт не може бути нулем."
+                        );
+                        fraction = new SimpleFraction(a);
                     }
                     else if (choice == "2")
                     {
-                        myFraction = new ContinuedFraction();
+                        Console.WriteLine("Введіть коефіцієнти (заборонено значення 3):");
+                        // Лямбда-вираз для перевірки умови != 3
+                        Func<double, bool> notThree = val => Math.Abs(val - 3.0) > 1e-12;
+                        string errorMsg = "Коефіцієнт не може дорівнювати 3.";
+
+                        double a1 = InputHandler.ReadDouble("a1: ", notThree, errorMsg);
+                        double a2 = InputHandler.ReadDouble("a2: ", notThree, errorMsg);
+                        double a3 = InputHandler.ReadDouble("a3: ", notThree, errorMsg);
+
+                        fraction = new ContinuedFraction(a1, a2, a3);
                     }
                     else
                     {
@@ -224,38 +242,31 @@ namespace AbstractInterfaceLab
                         continue;
                     }
 
-                    try
-                    {
-                        // Виклик методів через інтерфейс
-                        myFraction.SetCoefficients();
-                        myFraction.DisplayInfo();
+                    // Використання об'єкта
+                    fraction.DisplayInfo();
 
-                        Console.Write("Введіть x: ");
-                        if (double.TryParse(Console.ReadLine(), out double x))
-                        {
-                            double result = myFraction.Calculate(x);
-                            Console.WriteLine($"✅ Результат: {result:F4}");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Некоректний x.");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"❌ Помилка: {ex.Message}");
-                    }
+                    double x = InputHandler.ReadDouble("Введіть значення x для обчислення: ");
+                    double result = fraction.Calculate(x);
+                    Console.WriteLine($"✅ Результат: {result:F4}");
 
-                    // Тут myFraction виходить з області видимості блоку, 
-                    // але Garbage Collector спрацює не відразу.
                 }
-
-                // Примусовий виклик збирача сміття для демонстрації роботи Деструкторів (тільки для навчання!)
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                
-                Console.WriteLine("\nНатисніть Enter для продовження...");
-                Console.ReadLine();
+                catch (DivideByZeroException ex)
+                {
+                    Console.WriteLine($"❌ Помилка математики: {ex.Message}");
+                }
+                catch (ArgumentException ex)
+                {
+                    Console.WriteLine($"❌ Помилка аргументів: {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Непередбачена помилка: {ex.Message}");
+                }
+                finally
+                {
+                    // Явний виклик Dispose завдяки блоку finally (або використати using)
+                    fraction?.Dispose(); 
+                }
             }
         }
     }
